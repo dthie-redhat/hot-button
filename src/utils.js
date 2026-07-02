@@ -129,13 +129,3 @@ export async function sha256Hex(value) {
 export function getPageUrl(pageName) {
   return new URL(pageName, window.location.href).href;
 }
-
-export function getQrCodeUrl(value, size = 220) {
-  const params = new URLSearchParams({
-    size: `${size}x${size}`,
-    margin: "12",
-    data: value
-  });
-
-  return `https://api.qrserver.com/v1/create-qr-code/?${params.toString()}`;
-}

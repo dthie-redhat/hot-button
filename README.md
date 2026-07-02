@@ -27,7 +27,7 @@ The app has three pages:
 - Press timestamps use Firestore server timestamps.
 - Admin and display pages subscribe to live Firestore updates.
 - The display page sorts responses by fastest valid press.
-- The display page shows a QR code and URL for the participant page.
+- The display page shows the supplied participant QR code and URL.
 - The admin can delete all participants, username reservations, rounds, and press history.
 
 ## Backend Choice
@@ -43,6 +43,9 @@ A queue would be good for processing one-way events, but Hot Button needs shared
 ├── index.html
 ├── admin.html
 ├── display.html
+├── assets/
+│   ├── hot-button-QR.png
+│   └── redhat-logo.png
 ├── src/
 │   ├── admin.js
 │   ├── config.js

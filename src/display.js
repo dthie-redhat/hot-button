@@ -1,13 +1,12 @@
 import { firebaseIsConfigured } from "./firebase.js";
 import { renderPressList, getGameStateLabel } from "./render.js";
-import { getPageUrl, getQrCodeUrl, setElementHidden } from "./utils.js";
+import { getPageUrl, setElementHidden } from "./utils.js";
 import { subscribeGame, subscribePresses } from "./store.js";
 
 const elements = {
   configWarning: document.querySelector("[data-config-warning]"),
   board: document.getElementById("displayBoard"),
   participantUrl: document.getElementById("displayParticipantUrl"),
-  participantQr: document.getElementById("displayParticipantQr"),
   stateText: document.getElementById("displayStateText"),
   roundText: document.getElementById("displayRoundText"),
   footer: document.getElementById("displayFooter"),
@@ -66,7 +65,6 @@ function setPressesSubscription(roundId) {
 async function start() {
   const participantUrl = getPageUrl("index.html");
   elements.participantUrl.textContent = participantUrl;
-  elements.participantQr.src = getQrCodeUrl(participantUrl);
 
   if (!firebaseIsConfigured) {
     setElementHidden(elements.configWarning, false);
