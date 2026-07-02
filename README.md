@@ -18,12 +18,16 @@ The app has three pages:
 - Usernames are cached in the browser with `localStorage`.
 - Duplicate usernames are rejected.
 - Participants can change username from a small control on the button page.
-- The admin can open, disable, and reset the button between rounds.
+- The admin can enable or disable the button with a single state-aware toggle.
+- The admin can reset the current round between questions.
+- The admin can reset the game back to Round 1 while preserving participants and stored history.
+- The admin can see the full current participant list.
 - Presses before the button is opened are ignored.
 - Each participant can press only once per round.
 - Press timestamps use Firestore server timestamps.
 - Admin and display pages subscribe to live Firestore updates.
 - The display page sorts responses by fastest valid press.
+- The display page shows a QR code and URL for the participant page.
 - The admin can delete all participants, username reservations, rounds, and press history.
 
 ## Backend Choice
@@ -187,14 +191,23 @@ Elapsed response time is derived in the UI from `pressedAt - roundStartedAt`.
 
 ## Reset Behavior
 
-The admin screen has two reset levels.
+The admin screen has three reset choices.
 
 Round reset:
 
 - Disables the button.
-- Creates a new waiting round.
+- Keeps the current round number.
 - Clears the visible response list.
+- Deletes the current round's press entries.
 - Keeps participant registrations and username reservations.
+
+Game reset:
+
+- Disables the button.
+- Creates a new waiting Round 1.
+- Preserves registered participants.
+- Preserves existing stored round and press history.
+- Makes the current live response list empty because the current round is new.
 
 Delete all data:
 

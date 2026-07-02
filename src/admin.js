@@ -11,8 +11,10 @@ import {
   deleteAllData,
   disableRound,
   enableRound,
+  resetGameToStart,
   resetRound,
   subscribeGame,
+  subscribeParticipants,
   subscribePresses
 } from "./store.js";
 
@@ -26,9 +28,10 @@ const elements = {
   gameStateText: document.getElementById("gameStateText"),
   roundNumberText: document.getElementById("roundNumberText"),
   responseCountText: document.getElementById("responseCountText"),
-  enableButton: document.getElementById("enableButton"),
-  disableButton: document.getElementById("disableButton"),
+  toggleRoundButton: document.getElementById("toggleRoundButton"),
+  toggleRoundButtonLabel: document.getElementById("toggleRoundButtonLabel"),
   resetRoundButton: document.getElementById("resetRoundButton"),
+  resetGameButton: document.getElementById("resetGameButton"),
   deleteAllButton: document.getElementById("deleteAllButton"),
   participantUrl: document.getElementById("participantUrl"),
   displayUrl: document.getElementById("displayUrl"),
@@ -36,13 +39,17 @@ const elements = {
   copyDisplayUrl: document.getElementById("copyDisplayUrl"),
   copyStatus: document.getElementById("copyStatus"),
   syncNote: document.getElementById("syncNote"),
-  pressList: document.getElementById("pressList")
+  pressList: document.getElementById("pressList"),
+  participantCountText: document.getElementById("participantCountText"),
+  participantList: document.getElementById("participantList")
 };
 
 let currentGame = null;
 let currentPresses = [];
+let currentParticipants = [];
 let gameUnsubscribe = null;
 let pressesUnsubscribe = null;
+let participantsUnsubscribe = null;
 
 function isUnlocked() {
   return sessionStorage.getItem(STORAGE_KEYS.adminUnlocked) === "true";
@@ -62,13 +69,50 @@ function renderAdmin() {
   elements.responseCountText.textContent = String(currentPresses.length);
 
   const isOpen = Boolean(currentGame?.isButtonEnabled);
-  elements.enableButton.disabled = isOpen;
-  elements.disableButton.disabled = !isOpen;
+  elements.toggleRoundButtonLabel.textContent = isOpen ? "Disable" : "Enable";
+  elements.toggleRoundButton.classList.toggle("is-live", isOpen);
+  elements.toggleRoundButton.disabled = !currentGame;
   elements.resetRoundButton.disabled = false;
+  elements.resetGameButton.disabled = false;
   elements.deleteAllButton.disabled = false;
 
   renderPressList(elements.pressList, currentPresses, currentGame, {
     emptyMessage: isOpen ? "No presses yet." : "No responses in this round."
+  });
+
+  renderParticipantList();
+}
+
+function renderParticipantList() {
+  const sortedParticipants = [...currentParticipants].sort((a, b) =>
+    String(a.username || "").localeCompare(String(b.username || ""), undefined, {
+      sensitivity: "base"
+    })
+  );
+  const count = sortedParticipants.length;
+
+  elements.participantCountText.textContent =
+    count === 1 ? "1 participant" : `${count} participants`;
+  elements.participantList.replaceChildren();
+
+  if (count === 0) {
+    const emptyItem = document.createElement("li");
+    emptyItem.className = "empty-list";
+    emptyItem.textContent = "No participants registered yet.";
+    elements.participantList.append(emptyItem);
+    return;
+  }
+
+  sortedParticipants.forEach((participant) => {
+    const item = document.createElement("li");
+    item.className = "participant-row";
+
+    const name = document.createElement("span");
+    name.className = "participant-name";
+    name.textContent = participant.username || "Unknown";
+
+    item.append(name);
+    elements.participantList.append(item);
   });
 }
 
@@ -98,6 +142,22 @@ function setPressesSubscription(roundId) {
   );
 }
 
+function setParticipantsSubscription() {
+  if (participantsUnsubscribe) {
+    participantsUnsubscribe();
+  }
+
+  participantsUnsubscribe = subscribeParticipants(
+    (participants) => {
+      currentParticipants = participants;
+      renderAdmin();
+    },
+    () => {
+      elements.participantCountText.textContent = "Unable to load participants.";
+    }
+  );
+}
+
 async function showDashboard() {
   setElementHidden(elements.loginPanel, true);
   setElementHidden(elements.dashboard, false);
@@ -120,6 +180,8 @@ async function showDashboard() {
       elements.syncNote.textContent = "Unable to connect to the game state.";
     }
   );
+
+  setParticipantsSubscription();
 }
 
 function showLogin() {
@@ -136,16 +198,26 @@ async function copyText(value) {
 }
 
 async function runAdminAction(button, action, workingText) {
-  const originalText = button.textContent;
+  const label = button.querySelector(".hot-button-label");
+  const originalText = label ? label.textContent : button.textContent;
   button.disabled = true;
-  button.textContent = workingText;
+
+  if (label) {
+    label.textContent = workingText;
+  } else {
+    button.textContent = workingText;
+  }
 
   try {
     await action();
   } catch (error) {
     elements.syncNote.textContent = error.message || "Action failed.";
   } finally {
-    button.textContent = originalText;
+    if (label) {
+      label.textContent = originalText;
+    } else {
+      button.textContent = originalText;
+    }
     renderAdmin();
   }
 }
@@ -181,19 +253,30 @@ elements.loginForm.addEventListener("submit", async (event) => {
   await showDashboard();
 });
 
-elements.enableButton.addEventListener("click", () => {
-  runAdminAction(elements.enableButton, enableRound, "Opening...");
-});
-
-elements.disableButton.addEventListener("click", () => {
-  runAdminAction(elements.disableButton, disableRound, "Disabling...");
+elements.toggleRoundButton.addEventListener("click", () => {
+  const isOpen = Boolean(currentGame?.isButtonEnabled);
+  const action = isOpen ? disableRound : enableRound;
+  const workingText = isOpen ? "Disabling..." : "Enabling...";
+  runAdminAction(elements.toggleRoundButton, action, workingText);
 });
 
 elements.resetRoundButton.addEventListener("click", () => {
-  const confirmed = window.confirm("Reset this round and clear the visible response list?");
+  const confirmed = window.confirm(
+    "Clear this round's responses without changing the round number?"
+  );
 
   if (confirmed) {
     runAdminAction(elements.resetRoundButton, resetRound, "Resetting...");
+  }
+});
+
+elements.resetGameButton.addEventListener("click", () => {
+  const confirmed = window.confirm(
+    "Reset the game back to Round 1 while preserving participants and stored history?"
+  );
+
+  if (confirmed) {
+    runAdminAction(elements.resetGameButton, resetGameToStart, "Resetting...");
   }
 });
 
@@ -218,7 +301,7 @@ elements.copyDisplayUrl.addEventListener("click", () => {
 window.addEventListener("pagehide", () => {
   gameUnsubscribe?.();
   pressesUnsubscribe?.();
+  participantsUnsubscribe?.();
 });
 
 start();
-

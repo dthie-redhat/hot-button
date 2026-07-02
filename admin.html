@@ -13,7 +13,7 @@
       <header class="admin-header">
         <a class="brand" href="./index.html" aria-label="Hot Button home">
           <span class="brand-mark" aria-hidden="true"></span>
-          <span>Hot Button</span>
+          <span>Hot Button - Admin</span>
         </a>
         <nav class="page-links" aria-label="App pages">
           <a href="./index.html">Participant</a>
@@ -57,10 +57,19 @@
           </section>
 
           <section class="action-panel" aria-label="Admin actions">
-            <button class="primary-action" type="button" id="enableButton">Open button</button>
-            <button class="secondary-action" type="button" id="disableButton">Disable</button>
-            <button class="secondary-action" type="button" id="resetRoundButton">Reset round</button>
-            <button class="danger-action" type="button" id="deleteAllButton">Delete all data</button>
+            <div class="admin-toggle-control">
+              <button class="hot-button admin-hot-button" type="button" id="toggleRoundButton">
+                <span class="hot-button-glow" aria-hidden="true"></span>
+                <span class="hot-button-face">
+                  <span class="hot-button-label" id="toggleRoundButtonLabel">Enable</span>
+                </span>
+              </button>
+            </div>
+            <div class="admin-secondary-actions">
+              <button class="secondary-action" type="button" id="resetRoundButton">Reset round</button>
+              <button class="secondary-action" type="button" id="resetGameButton">Reset game to start</button>
+              <button class="danger-action" type="button" id="deleteAllButton">Delete all data</button>
+            </div>
           </section>
 
           <section class="share-panel" aria-label="Shared page URLs">
@@ -87,9 +96,19 @@
             </div>
             <ol class="press-list" id="pressList"></ol>
           </section>
+
+          <section class="participants-section">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Registered players</p>
+                <h2>Current participants</h2>
+              </div>
+              <p class="sync-note" id="participantCountText">0 participants</p>
+            </div>
+            <ul class="participant-list" id="participantList"></ul>
+          </section>
         </section>
       </main>
     </div>
   </body>
 </html>
-

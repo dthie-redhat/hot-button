@@ -6,8 +6,6 @@ import {
   onSnapshot,
   runTransaction,
   serverTimestamp,
-  setDoc,
-  updateDoc,
   writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { db } from "./firebase.js";
@@ -144,6 +142,18 @@ export function subscribePresses(roundId, onNext, onError) {
     collection(database, "rounds", roundId, "presses"),
     (snapshot) => {
       onNext(snapshot.docs.map((pressSnapshot) => snapshotData(pressSnapshot)));
+    },
+    onError
+  );
+}
+
+export function subscribeParticipants(onNext, onError) {
+  const database = requireDb();
+
+  return onSnapshot(
+    collection(database, "participants"),
+    (snapshot) => {
+      onNext(snapshot.docs.map((participantSnapshot) => snapshotData(participantSnapshot)));
     },
     onError
   );
@@ -349,16 +359,57 @@ export async function resetRound() {
 
   const snapshot = await getDoc(gameRef(database));
   const game = snapshot.exists() ? snapshot.data() : {};
-  const roundNumber = Number(game.roundNumber || 0) + 1;
-  const roundId = createId("round");
+  const roundId = game.roundId || createId("round");
+  const roundNumber = Number(game.roundNumber || 1);
   const batch = writeBatch(database);
 
-  batch.set(roundRef(roundId, database), cleanRoundPayload(roundId, roundNumber));
+  batch.set(
+    roundRef(roundId, database),
+    game.roundId
+      ? {
+          roundId,
+          roundNumber,
+          status: "waiting",
+          startedAt: null,
+          resetAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }
+      : cleanRoundPayload(roundId, roundNumber),
+    { merge: Boolean(game.roundId) }
+  );
   batch.set(
     gameRef(database),
     {
-      ...cleanGamePayload(roundId, roundNumber),
-      resetAt: serverTimestamp()
+      isButtonEnabled: false,
+      roundId,
+      roundNumber,
+      roundStartedAt: null,
+      resetAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  );
+
+  await batch.commit();
+
+  if (game.roundId) {
+    await deleteCollection(database, ["rounds", game.roundId, "presses"]);
+  }
+}
+
+export async function resetGameToStart() {
+  const database = requireDb();
+  await ensureGameDocument();
+
+  const roundId = createId("round");
+  const batch = writeBatch(database);
+
+  batch.set(roundRef(roundId, database), cleanRoundPayload(roundId, 1));
+  batch.set(
+    gameRef(database),
+    {
+      ...cleanGamePayload(roundId, 1),
+      gameResetAt: serverTimestamp()
     },
     { merge: true }
   );
