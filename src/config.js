@@ -1,10 +1,10 @@
 export const firebaseConfig = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_FIREBASE_APP_ID"
+  apiKey: "AIzaSyCXc1w2gfNKBT8q3quibPaj9w9doa5EUlY",
+  authDomain: "hot-button-1f98e.firebaseapp.com",
+  projectId: "hot-button-1f98e",
+  storageBucket: "hot-button-1f98e.firebasestorage.app",
+  messagingSenderId: "496180078312",
+  appId: "1:496180078312:web:021896845545e34919cb5d"
 };
 
 export const appSettings = {
