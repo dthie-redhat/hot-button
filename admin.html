@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#181512">
+    <title>Hot Button Admin</title>
+    <link rel="stylesheet" href="./src/styles.css">
+    <script type="module" src="./src/admin.js"></script>
+  </head>
+  <body class="admin-page">
+    <div class="admin-shell">
+      <header class="admin-header">
+        <a class="brand" href="./index.html" aria-label="Hot Button home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Hot Button</span>
+        </a>
+        <nav class="page-links" aria-label="App pages">
+          <a href="./index.html">Participant</a>
+          <a href="./display.html">Display</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="notice-panel" data-config-warning hidden>
+          <h1>Firebase setup needed</h1>
+          <p>Edit <code>src/config.js</code> with your Firebase project details before using the admin screen.</p>
+        </section>
+
+        <section class="login-panel" id="loginPanel">
+          <div class="panel-heading">
+            <p class="eyebrow">Host access</p>
+            <h1>Admin passcode</h1>
+          </div>
+          <form id="loginForm" class="stacked-form">
+            <label for="passcodeInput">Passcode</label>
+            <input id="passcodeInput" type="password" autocomplete="current-password" required>
+            <p class="form-error" id="loginError" role="alert" hidden></p>
+            <button class="primary-action" type="submit">Unlock admin</button>
+          </form>
+        </section>
+
+        <section class="admin-dashboard" id="adminDashboard" hidden>
+          <section class="control-band" aria-label="Round controls">
+            <div class="status-tile">
+              <span class="status-label">State</span>
+              <strong id="gameStateText">Waiting</strong>
+            </div>
+            <div class="status-tile">
+              <span class="status-label">Round</span>
+              <strong id="roundNumberText">1</strong>
+            </div>
+            <div class="status-tile">
+              <span class="status-label">Responses</span>
+              <strong id="responseCountText">0</strong>
+            </div>
+          </section>
+
+          <section class="action-panel" aria-label="Admin actions">
+            <button class="primary-action" type="button" id="enableButton">Open button</button>
+            <button class="secondary-action" type="button" id="disableButton">Disable</button>
+            <button class="secondary-action" type="button" id="resetRoundButton">Reset round</button>
+            <button class="danger-action" type="button" id="deleteAllButton">Delete all data</button>
+          </section>
+
+          <section class="share-panel" aria-label="Shared page URLs">
+            <div>
+              <span class="status-label">Participant URL</span>
+              <code id="participantUrl"></code>
+            </div>
+            <button class="secondary-action compact-action" type="button" id="copyParticipantUrl">Copy</button>
+            <div>
+              <span class="status-label">Display URL</span>
+              <code id="displayUrl"></code>
+            </div>
+            <button class="secondary-action compact-action" type="button" id="copyDisplayUrl">Copy</button>
+            <p class="copy-status" id="copyStatus" aria-live="polite"></p>
+          </section>
+
+          <section class="responses-section">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Current round</p>
+                <h2>Live responses</h2>
+              </div>
+              <p class="sync-note" id="syncNote">Listening for presses.</p>
+            </div>
+            <ol class="press-list" id="pressList"></ol>
+          </section>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
+

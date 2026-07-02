@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#17130f">
+    <title>Hot Button Display</title>
+    <link rel="stylesheet" href="./src/styles.css">
+    <script type="module" src="./src/display.js"></script>
+  </head>
+  <body class="display-page">
+    <main class="display-shell">
+      <section class="notice-panel display-notice" data-config-warning hidden>
+        <h1>Firebase setup needed</h1>
+        <p>Edit <code>src/config.js</code> with your Firebase project details before using the display.</p>
+      </section>
+
+      <section class="display-board" id="displayBoard">
+        <header class="display-header">
+          <div>
+            <p class="eyebrow">Hot Button</p>
+            <h1 id="displayTitle">Live responses</h1>
+          </div>
+          <div class="display-state">
+            <span id="displayStateText">Waiting</span>
+            <strong id="displayRoundText">Round 1</strong>
+          </div>
+        </header>
+
+        <ol class="press-list display-list" id="displayPressList"></ol>
+
+        <p class="display-footer" id="displayFooter">Waiting for the host to open the button.</p>
+      </section>
+    </main>
+  </body>
+</html>
+

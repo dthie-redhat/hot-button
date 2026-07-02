@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#df2f2f">
+    <title>Hot Button</title>
+    <link rel="stylesheet" href="./src/styles.css">
+    <script type="module" src="./src/participant.js"></script>
+  </head>
+  <body class="participant-page">
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./index.html" aria-label="Hot Button home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Hot Button</span>
+        </a>
+      </header>
+
+      <main class="participant-main">
+        <section class="notice-panel" data-config-warning hidden>
+          <h1>Firebase setup needed</h1>
+          <p>Edit <code>src/config.js</code> with your Firebase project details before using the app.</p>
+        </section>
+
+        <section class="registration-panel" id="registrationPanel" hidden>
+          <div class="panel-heading">
+            <p class="eyebrow">Join the round</p>
+            <h1>Choose your display name</h1>
+          </div>
+
+          <form id="registrationForm" class="stacked-form" autocomplete="off">
+            <label for="usernameInput">Username</label>
+            <input
+              id="usernameInput"
+              name="username"
+              type="text"
+              inputmode="text"
+              maxlength="24"
+              placeholder="e.g. QuizAce"
+              required
+            >
+            <p class="form-help">Use 2 to 24 letters, numbers, spaces, dots, hyphens, or underscores.</p>
+            <p class="form-error" id="registrationError" role="alert" hidden></p>
+            <div class="form-actions">
+              <button class="primary-action" type="submit" id="saveUsernameButton">Save name</button>
+              <button class="quiet-action" type="button" id="cancelUsernameButton" hidden>Cancel</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="button-stage" id="buttonPanel" hidden>
+          <div class="user-strip">
+            <span>Playing as <strong id="usernameLabel"></strong></span>
+            <button class="text-action" type="button" id="changeUsernameButton">Change</button>
+          </div>
+
+          <div class="round-pill" id="roundLabel">Round 1</div>
+
+          <button class="hot-button" id="hotButton" type="button" disabled>
+            <span class="hot-button-glow" aria-hidden="true"></span>
+            <span class="hot-button-face">
+              <span class="hot-button-label">PRESS</span>
+            </span>
+          </button>
+
+          <p class="state-message" id="buttonStateMessage" aria-live="polite">Waiting for the host.</p>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
+
