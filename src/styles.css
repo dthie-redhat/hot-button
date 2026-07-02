@@ -355,10 +355,29 @@ code {
   opacity: 1;
 }
 
-.hot-button.is-pressed .hot-button-face {
+.hot-button.is-registering .hot-button-glow {
+  opacity: 1;
+}
+
+.hot-button.is-registering .hot-button-face {
   background:
     radial-gradient(circle at 36% 24%, rgba(255, 255, 255, 0.72) 0 9%, transparent 10%),
-    radial-gradient(circle at 50% 62%, var(--green) 0 43%, #116236 69%, #09391f 100%);
+    radial-gradient(circle at 50% 62%, var(--red) 0 43%, var(--red-dark) 69%, var(--red-deep) 100%);
+  animation: hot-button-press-return 420ms ease-out both;
+}
+
+@keyframes hot-button-press-return {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+
+  38% {
+    transform: translateY(10px) scale(0.95, 0.82);
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+  }
 }
 
 .state-message {
@@ -705,4 +724,3 @@ code {
     font-size: 1.4rem;
   }
 }
-

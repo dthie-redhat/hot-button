@@ -40,10 +40,12 @@ let currentParticipant = null;
 let currentPress = null;
 let isRegistering = false;
 let isPressing = false;
+let isPressAnimationActive = false;
 let transientButtonMessage = "";
 let gameUnsubscribe = null;
 let participantUnsubscribe = null;
 let pressUnsubscribe = null;
+let pressAnimationTimeout = null;
 
 function showRegistration(message = "") {
   elements.registrationError.textContent = message;
@@ -81,7 +83,7 @@ function renderButtonState() {
   const canPress = roundIsOpen && !hasPressed && !isPressing;
   elements.hotButton.disabled = !canPress;
   elements.hotButton.classList.toggle("is-live", roundIsOpen && !hasPressed);
-  elements.hotButton.classList.toggle("is-pressed", hasPressed);
+  elements.hotButton.classList.toggle("is-registering", isPressAnimationActive);
 
   if (transientButtonMessage) {
     elements.buttonStateMessage.textContent = transientButtonMessage;
@@ -95,7 +97,7 @@ function renderButtonState() {
 
   if (hasPressed) {
     const elapsed = formatElapsed(getElapsedMs(currentPress, currentGame));
-    elements.buttonStateMessage.textContent = `Registered at ${elapsed}.`;
+    elements.buttonStateMessage.textContent = `Registered at ${elapsed}. Waiting for the next round.`;
     return;
   }
 
@@ -225,13 +227,21 @@ elements.hotButton.addEventListener("click", async () => {
   }
 
   isPressing = true;
+  isPressAnimationActive = true;
   transientButtonMessage = "";
   renderButtonState();
+
+  window.clearTimeout(pressAnimationTimeout);
+  pressAnimationTimeout = window.setTimeout(() => {
+    isPressAnimationActive = false;
+    renderButtonState();
+  }, 420);
 
   try {
     await pressButton(participantId);
   } catch (error) {
     isPressing = false;
+    isPressAnimationActive = false;
     transientButtonMessage = error.message || "Unable to register your press.";
     renderButtonState();
   }
@@ -241,6 +251,7 @@ window.addEventListener("pagehide", () => {
   gameUnsubscribe?.();
   participantUnsubscribe?.();
   pressUnsubscribe?.();
+  window.clearTimeout(pressAnimationTimeout);
 });
 
 start();
