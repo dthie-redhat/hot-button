@@ -1,0 +1,37 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": false,
+    "settings": {
+      ".write": true,
+      "game": {
+        ".validate": "newData.hasChildren(['isButtonEnabled', 'roundId', 'roundNumber', 'revision', 'updatedAt']) && newData.child('isButtonEnabled').isBoolean() && newData.child('roundId').isString() && newData.child('roundNumber').isNumber() && newData.child('revision').isNumber()"
+      }
+    },
+    "participants": {
+      ".write": true,
+      "$participantId": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['participantId', 'username', 'usernameKey', 'usernameDocId', 'createdAt', 'updatedAt']) && newData.child('participantId').val() === $participantId && newData.child('username').isString() && newData.child('username').val().length >= 2 && newData.child('username').val().length <= 24 && newData.child('usernameKey').isString() && newData.child('usernameDocId').isString()"
+      }
+    },
+    "usernames": {
+      ".write": true,
+      "$usernameId": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['participantId', 'username', 'usernameKey', 'createdAt', 'updatedAt']) && newData.child('participantId').isString() && newData.child('username').isString() && newData.child('username').val().length >= 2 && newData.child('username').val().length <= 24 && newData.child('usernameKey').isString()"
+      }
+    },
+    "rounds": {
+      ".write": true,
+      "$roundId": {
+        ".validate": "newData.hasChildren(['roundId', 'roundNumber', 'status', 'createdAt', 'updatedAt']) && newData.child('roundId').val() === $roundId && newData.child('roundNumber').isNumber() && newData.child('status').isString()",
+        "presses": {
+          "$participantId": {
+            ".validate": "newData.hasChildren(['participantId', 'username', 'usernameKey', 'roundId', 'roundNumber', 'roundStartedAt', 'pressedAt', 'createdAt']) && newData.child('participantId').val() === $participantId && newData.child('roundId').val() === $roundId && newData.child('username').isString() && newData.child('roundNumber').isNumber()"
+          }
+        }
+      }
+    }
+  }
+}

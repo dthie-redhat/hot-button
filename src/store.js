@@ -1,13 +1,11 @@
 import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  onSnapshot,
+  get,
+  onValue,
+  ref,
   runTransaction,
   serverTimestamp,
-  writeBatch
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  update
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 import { db } from "./firebase.js";
 import {
   createId,
@@ -32,33 +30,34 @@ function requireDb() {
   return db;
 }
 
+function rootRef(database = requireDb()) {
+  return ref(database);
+}
+
 function gameRef(database = requireDb()) {
-  return doc(database, "settings", "game");
+  return ref(database, "settings/game");
 }
 
 function participantRef(participantId, database = requireDb()) {
-  return doc(database, "participants", participantId);
-}
-
-function usernameRef(username, database = requireDb()) {
-  return doc(database, "usernames", usernameDocId(username));
-}
-
-function roundRef(roundId, database = requireDb()) {
-  return doc(database, "rounds", roundId);
+  return ref(database, `participants/${participantId}`);
 }
 
 function pressRef(roundId, participantId, database = requireDb()) {
-  return doc(database, "rounds", roundId, "presses", participantId);
+  return ref(database, `rounds/${roundId}/presses/${participantId}`);
 }
 
-function cleanGamePayload(roundId, roundNumber) {
+function now() {
+  return serverTimestamp();
+}
+
+function cleanGamePayload(roundId, roundNumber, revision = 0) {
   return {
     isButtonEnabled: false,
     roundId,
     roundNumber,
     roundStartedAt: null,
-    updatedAt: serverTimestamp()
+    revision,
+    updatedAt: now()
   };
 }
 
@@ -68,39 +67,55 @@ function cleanRoundPayload(roundId, roundNumber) {
     roundNumber,
     status: "waiting",
     startedAt: null,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
+    createdAt: now(),
+    updatedAt: now()
   };
 }
 
-function snapshotData(snapshot) {
-  return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
+function valueWithId(id, value) {
+  return value ? { id, ...value } : null;
+}
+
+function collectionValues(value) {
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+
+  return Object.entries(value).map(([id, data]) => ({ id, ...data }));
+}
+
+function nextRevision(game) {
+  return Number(game?.revision || 0) + 1;
+}
+
+function initialSessionPayload(roundId = createId("round")) {
+  return {
+    "settings/game": {
+      ...cleanGamePayload(roundId, 1, 0),
+      createdAt: now()
+    },
+    [`rounds/${roundId}`]: cleanRoundPayload(roundId, 1)
+  };
 }
 
 export async function ensureGameDocument() {
   const database = requireDb();
-  const ref = gameRef(database);
-  const snapshot = await getDoc(ref);
+  const snapshot = await get(gameRef(database));
 
   if (snapshot.exists()) {
-    return snapshotData(snapshot);
+    return valueWithId("game", snapshot.val());
   }
 
   const roundId = createId("round");
-  const batch = writeBatch(database);
-  batch.set(ref, {
-    ...cleanGamePayload(roundId, 1),
-    createdAt: serverTimestamp()
-  });
-  batch.set(roundRef(roundId, database), cleanRoundPayload(roundId, 1));
-  await batch.commit();
+  await update(rootRef(database), initialSessionPayload(roundId));
 
   return {
     id: "game",
     isButtonEnabled: false,
     roundId,
     roundNumber: 1,
-    roundStartedAt: null
+    roundStartedAt: null,
+    revision: 0
   };
 }
 
@@ -108,9 +123,19 @@ export async function subscribeGame(onNext, onError) {
   const database = requireDb();
   await ensureGameDocument();
 
-  return onSnapshot(
+  return onValue(
     gameRef(database),
-    (snapshot) => onNext(snapshotData(snapshot)),
+    (snapshot) => onNext(valueWithId("game", snapshot.val())),
+    onError
+  );
+}
+
+export function subscribeConnection(onNext, onError) {
+  const database = requireDb();
+
+  return onValue(
+    ref(database, ".info/connected"),
+    (snapshot) => onNext(Boolean(snapshot.val())),
     onError
   );
 }
@@ -118,9 +143,9 @@ export async function subscribeGame(onNext, onError) {
 export function subscribeParticipant(participantId, onNext, onError) {
   const database = requireDb();
 
-  return onSnapshot(
+  return onValue(
     participantRef(participantId, database),
-    (snapshot) => onNext(snapshotData(snapshot)),
+    (snapshot) => onNext(valueWithId(participantId, snapshot.val())),
     onError
   );
 }
@@ -128,9 +153,9 @@ export function subscribeParticipant(participantId, onNext, onError) {
 export function subscribeParticipantPress(roundId, participantId, onNext, onError) {
   const database = requireDb();
 
-  return onSnapshot(
+  return onValue(
     pressRef(roundId, participantId, database),
-    (snapshot) => onNext(snapshotData(snapshot)),
+    (snapshot) => onNext(valueWithId(participantId, snapshot.val())),
     onError
   );
 }
@@ -138,11 +163,9 @@ export function subscribeParticipantPress(roundId, participantId, onNext, onErro
 export function subscribePresses(roundId, onNext, onError) {
   const database = requireDb();
 
-  return onSnapshot(
-    collection(database, "rounds", roundId, "presses"),
-    (snapshot) => {
-      onNext(snapshot.docs.map((pressSnapshot) => snapshotData(pressSnapshot)));
-    },
+  return onValue(
+    ref(database, `rounds/${roundId}/presses`),
+    (snapshot) => onNext(collectionValues(snapshot.val())),
     onError
   );
 }
@@ -150,11 +173,9 @@ export function subscribePresses(roundId, onNext, onError) {
 export function subscribeParticipants(onNext, onError) {
   const database = requireDb();
 
-  return onSnapshot(
-    collection(database, "participants"),
-    (snapshot) => {
-      onNext(snapshot.docs.map((participantSnapshot) => snapshotData(participantSnapshot)));
-    },
+  return onValue(
+    ref(database, "participants"),
+    (snapshot) => onNext(collectionValues(snapshot.val())),
     onError
   );
 }
@@ -170,315 +191,271 @@ export async function registerParticipant(participantId, rawUsername) {
   const username = validation.username;
   const nextUsernameKey = usernameKey(username);
   const nextUsernameDocId = usernameDocId(username);
-  const nextUsernameRef = usernameRef(username, database);
-  const nextParticipantRef = participantRef(participantId, database);
+  const result = await runTransaction(
+    rootRef(database),
+    (session) => {
+      const nextSession = session || {};
+      const participants = { ...(nextSession.participants || {}) };
+      const usernames = { ...(nextSession.usernames || {}) };
+      const participant = participants[participantId] || null;
+      const reservation = usernames[nextUsernameDocId] || null;
 
-  await runTransaction(database, async (transaction) => {
-    const participantSnapshot = await transaction.get(nextParticipantRef);
-    const usernameSnapshot = await transaction.get(nextUsernameRef);
-    const existingUsernameOwner = usernameSnapshot.exists()
-      ? usernameSnapshot.data().participantId
-      : null;
+      if (reservation?.participantId && reservation.participantId !== participantId) {
+        return;
+      }
 
-    if (existingUsernameOwner && existingUsernameOwner !== participantId) {
-      throw new HotButtonError("duplicate-username", "That username is already in use.");
-    }
+      const oldUsernameDocId = participant?.usernameDocId;
 
-    const currentParticipant = participantSnapshot.exists()
-      ? participantSnapshot.data()
-      : null;
-    const oldUsernameDocId = currentParticipant?.usernameDocId;
-    const shouldDeleteOldUsername =
-      oldUsernameDocId && oldUsernameDocId !== nextUsernameDocId;
-    const oldUsernameRef = shouldDeleteOldUsername
-      ? doc(database, "usernames", oldUsernameDocId)
-      : null;
-    const oldUsernameSnapshot = oldUsernameRef
-      ? await transaction.get(oldUsernameRef)
-      : null;
+      if (oldUsernameDocId && oldUsernameDocId !== nextUsernameDocId) {
+        const oldReservation = usernames[oldUsernameDocId];
 
-    const participantPayload = {
-      participantId,
-      username,
-      usernameKey: nextUsernameKey,
-      usernameDocId: nextUsernameDocId,
-      updatedAt: serverTimestamp()
-    };
+        if (!oldReservation || oldReservation.participantId === participantId) {
+          delete usernames[oldUsernameDocId];
+        }
+      }
 
-    if (!participantSnapshot.exists()) {
-      participantPayload.createdAt = serverTimestamp();
-    }
+      participants[participantId] = {
+        participantId,
+        username,
+        usernameKey: nextUsernameKey,
+        usernameDocId: nextUsernameDocId,
+        createdAt: participant?.createdAt || now(),
+        updatedAt: now()
+      };
 
-    transaction.set(nextParticipantRef, participantPayload, { merge: true });
+      usernames[nextUsernameDocId] = {
+        participantId,
+        username,
+        usernameKey: nextUsernameKey,
+        createdAt: reservation?.createdAt || now(),
+        updatedAt: now()
+      };
 
-    const usernamePayload = {
-      participantId,
-      username,
-      usernameKey: nextUsernameKey,
-      updatedAt: serverTimestamp()
-    };
+      return {
+        ...nextSession,
+        participants,
+        usernames
+      };
+    },
+    { applyLocally: false }
+  );
 
-    if (!usernameSnapshot.exists()) {
-      usernamePayload.createdAt = serverTimestamp();
-    }
-
-    transaction.set(nextUsernameRef, usernamePayload, { merge: true });
-
-    if (
-      oldUsernameRef &&
-      (!oldUsernameSnapshot.exists() ||
-        oldUsernameSnapshot.data().participantId === participantId)
-    ) {
-      transaction.delete(oldUsernameRef);
-    }
-  });
+  if (!result.committed) {
+    throw new HotButtonError("duplicate-username", "That username is already in use.");
+  }
 
   return username;
 }
 
 export async function pressButton(participantId) {
   const database = requireDb();
-  const ref = gameRef(database);
+  const result = await runTransaction(
+    rootRef(database),
+    (session) => {
+      if (!session?.settings?.game) {
+        return;
+      }
 
-  await runTransaction(database, async (transaction) => {
-    const gameSnapshot = await transaction.get(ref);
-    const game = gameSnapshot.exists() ? gameSnapshot.data() : null;
+      const game = session.settings.game;
 
-    if (!game || !game.isButtonEnabled || !game.roundId || !game.roundStartedAt) {
-      throw new HotButtonError("round-closed", "The button is not open yet.");
-    }
+      if (!game.isButtonEnabled || !game.roundId || !game.roundStartedAt) {
+        return;
+      }
 
-    const currentParticipantRef = participantRef(participantId, database);
-    const participantSnapshot = await transaction.get(currentParticipantRef);
+      const participant = session.participants?.[participantId];
 
-    if (!participantSnapshot.exists()) {
-      throw new HotButtonError("not-registered", "Choose a username before pressing.");
-    }
+      if (!participant) {
+        return;
+      }
 
-    const currentPressRef = pressRef(game.roundId, participantId, database);
-    const pressSnapshot = await transaction.get(currentPressRef);
+      const rounds = { ...(session.rounds || {}) };
+      const round = {
+        ...(rounds[game.roundId] || {
+          roundId: game.roundId,
+          roundNumber: game.roundNumber || null
+        })
+      };
+      const presses = { ...(round.presses || {}) };
 
-    if (pressSnapshot.exists()) {
-      throw new HotButtonError("already-pressed", "Your press is already registered.");
-    }
+      if (presses[participantId]) {
+        return;
+      }
 
-    const participant = participantSnapshot.data();
+      presses[participantId] = {
+        participantId,
+        username: participant.username,
+        usernameKey: participant.usernameKey,
+        roundId: game.roundId,
+        roundNumber: game.roundNumber || null,
+        roundStartedAt: game.roundStartedAt,
+        pressedAt: now(),
+        createdAt: now()
+      };
 
-    transaction.set(currentPressRef, {
-      participantId,
-      username: participant.username,
-      usernameKey: participant.usernameKey,
-      roundId: game.roundId,
-      roundNumber: game.roundNumber || null,
-      roundStartedAt: game.roundStartedAt,
-      pressedAt: serverTimestamp(),
-      createdAt: serverTimestamp()
-    });
-  });
+      round.presses = presses;
+      round.updatedAt = now();
+      rounds[game.roundId] = round;
+
+      return {
+        ...session,
+        rounds
+      };
+    },
+    { applyLocally: false }
+  );
+
+  if (result.committed) {
+    return;
+  }
+
+  const gameSnapshot = await get(gameRef(database));
+  const game = gameSnapshot.exists() ? gameSnapshot.val() : null;
+
+  if (!game || !game.isButtonEnabled || !game.roundId || !game.roundStartedAt) {
+    throw new HotButtonError("round-closed", "The button is not open yet.");
+  }
+
+  const participantSnapshot = await get(participantRef(participantId, database));
+
+  if (!participantSnapshot.exists()) {
+    throw new HotButtonError("not-registered", "Choose a username before pressing.");
+  }
+
+  const pressSnapshot = await get(pressRef(game.roundId, participantId, database));
+
+  if (pressSnapshot.exists()) {
+    throw new HotButtonError("already-pressed", "Your press is already registered.");
+  }
+
+  throw new HotButtonError("press-failed", "Unable to register your press.");
 }
 
 export async function enableRound() {
   const database = requireDb();
-  await ensureGameDocument();
+  const game = await ensureGameDocument();
+  const needsNewRound = !game.roundId || game.roundStartedAt;
+  const roundId = needsNewRound ? createId("round") : game.roundId;
+  const roundNumber = needsNewRound
+    ? Number(game.roundNumber || 0) + 1
+    : Number(game.roundNumber || 1);
+  const revision = nextRevision(game);
 
-  await runTransaction(database, async (transaction) => {
-    const currentGameRef = gameRef(database);
-    const gameSnapshot = await transaction.get(currentGameRef);
-    const game = gameSnapshot.exists() ? gameSnapshot.data() : {};
+  if (game.isButtonEnabled) {
+    return;
+  }
 
-    if (game.isButtonEnabled) {
-      return;
-    }
-
-    const needsNewRound = !game.roundId || game.roundStartedAt;
-    const roundId = needsNewRound ? createId("round") : game.roundId;
-    const roundNumber = needsNewRound ? Number(game.roundNumber || 0) + 1 : Number(game.roundNumber || 1);
-    const currentRoundRef = roundRef(roundId, database);
-
-    transaction.set(
-      currentRoundRef,
-      {
-        ...(needsNewRound ? cleanRoundPayload(roundId, roundNumber) : {}),
-        roundId,
-        roundNumber,
-        status: "active",
-        startedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      },
-      { merge: !needsNewRound }
-    );
-
-    transaction.set(
-      currentGameRef,
-      {
-        isButtonEnabled: true,
-        roundId,
-        roundNumber,
-        roundStartedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
+  await update(rootRef(database), {
+    [`rounds/${roundId}`]: {
+      ...(needsNewRound ? cleanRoundPayload(roundId, roundNumber) : {}),
+      roundId,
+      roundNumber,
+      status: "active",
+      startedAt: now(),
+      updatedAt: now()
+    },
+    "settings/game/isButtonEnabled": true,
+    "settings/game/roundId": roundId,
+    "settings/game/roundNumber": roundNumber,
+    "settings/game/roundStartedAt": now(),
+    "settings/game/revision": revision,
+    "settings/game/updatedAt": now()
   });
 }
 
 export async function disableRound() {
   const database = requireDb();
-  await ensureGameDocument();
+  const game = await ensureGameDocument();
+  const updates = {
+    "settings/game/isButtonEnabled": false,
+    "settings/game/revision": nextRevision(game),
+    "settings/game/updatedAt": now()
+  };
 
-  const snapshot = await getDoc(gameRef(database));
-  const game = snapshot.exists() ? snapshot.data() : null;
-  const batch = writeBatch(database);
-
-  batch.set(
-    gameRef(database),
-    {
-      isButtonEnabled: false,
-      updatedAt: serverTimestamp()
-    },
-    { merge: true }
-  );
-
-  if (game?.roundId) {
-    batch.set(
-      roundRef(game.roundId, database),
-      {
-        status: "disabled",
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
+  if (game.roundId) {
+    updates[`rounds/${game.roundId}/status`] = "disabled";
+    updates[`rounds/${game.roundId}/updatedAt`] = now();
   }
 
-  await batch.commit();
+  await update(rootRef(database), updates);
 }
 
 export async function resetRound() {
   const database = requireDb();
-  await ensureGameDocument();
-
-  const snapshot = await getDoc(gameRef(database));
-  const game = snapshot.exists() ? snapshot.data() : {};
-  const roundId = game.roundId || createId("round");
+  const game = await ensureGameDocument();
   const roundNumber = Number(game.roundNumber || 1);
-  const batch = writeBatch(database);
+  const roundId = createId("round");
 
-  batch.set(
-    roundRef(roundId, database),
-    game.roundId
-      ? {
-          roundId,
-          roundNumber,
-          status: "waiting",
-          startedAt: null,
-          resetAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        }
-      : cleanRoundPayload(roundId, roundNumber),
-    { merge: Boolean(game.roundId) }
-  );
-  batch.set(
-    gameRef(database),
-    {
-      isButtonEnabled: false,
-      roundId,
-      roundNumber,
-      roundStartedAt: null,
-      resetAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+  await update(rootRef(database), {
+    [`rounds/${roundId}`]: {
+      ...cleanRoundPayload(roundId, roundNumber),
+      resetFromRoundId: game.roundId || null
     },
-    { merge: true }
-  );
-
-  await batch.commit();
-
-  if (game.roundId) {
-    await deleteCollection(database, ["rounds", game.roundId, "presses"]);
-  }
+    "settings/game/isButtonEnabled": false,
+    "settings/game/roundId": roundId,
+    "settings/game/roundNumber": roundNumber,
+    "settings/game/roundStartedAt": null,
+    "settings/game/revision": nextRevision(game),
+    "settings/game/resetAt": now(),
+    "settings/game/updatedAt": now()
+  });
 }
 
 export async function resetGameToStart() {
   const database = requireDb();
-  await ensureGameDocument();
-
+  const game = await ensureGameDocument();
   const roundId = createId("round");
-  const batch = writeBatch(database);
 
-  batch.set(roundRef(roundId, database), cleanRoundPayload(roundId, 1));
-  batch.set(
-    gameRef(database),
-    {
-      ...cleanGamePayload(roundId, 1),
-      gameResetAt: serverTimestamp()
-    },
-    { merge: true }
+  await update(rootRef(database), {
+    [`rounds/${roundId}`]: cleanRoundPayload(roundId, 1),
+    "settings/game/isButtonEnabled": false,
+    "settings/game/roundId": roundId,
+    "settings/game/roundNumber": 1,
+    "settings/game/roundStartedAt": null,
+    "settings/game/revision": nextRevision(game),
+    "settings/game/gameResetAt": now(),
+    "settings/game/updatedAt": now()
+  });
+}
+
+function countKeys(value) {
+  return value && typeof value === "object" ? Object.keys(value).length : 0;
+}
+
+function countPresses(rounds) {
+  if (!rounds || typeof rounds !== "object") {
+    return 0;
+  }
+
+  return Object.values(rounds).reduce(
+    (total, round) => total + countKeys(round?.presses),
+    0
   );
-
-  await batch.commit();
-}
-
-async function deleteSnapshotDocuments(database, snapshot) {
-  let batch = writeBatch(database);
-  let batchSize = 0;
-  let total = 0;
-
-  for (const documentSnapshot of snapshot.docs) {
-    batch.delete(documentSnapshot.ref);
-    batchSize += 1;
-    total += 1;
-
-    if (batchSize === 450) {
-      await batch.commit();
-      batch = writeBatch(database);
-      batchSize = 0;
-    }
-  }
-
-  if (batchSize > 0) {
-    await batch.commit();
-  }
-
-  return total;
-}
-
-async function deleteCollection(database, pathSegments) {
-  const snapshot = await getDocs(collection(database, ...pathSegments));
-  return deleteSnapshotDocuments(database, snapshot);
 }
 
 export async function deleteAllData() {
   const database = requireDb();
+  const snapshot = await get(rootRef(database));
+  const session = snapshot.exists() ? snapshot.val() : {};
+  const roundId = createId("round");
   const counts = {
-    participants: 0,
-    usernames: 0,
-    rounds: 0,
-    presses: 0
+    participants: countKeys(session.participants),
+    usernames: countKeys(session.usernames),
+    rounds: countKeys(session.rounds),
+    presses: countPresses(session.rounds)
   };
 
-  counts.participants = await deleteCollection(database, ["participants"]);
-  counts.usernames = await deleteCollection(database, ["usernames"]);
-
-  const roundsSnapshot = await getDocs(collection(database, "rounds"));
-
-  for (const roundSnapshot of roundsSnapshot.docs) {
-    counts.presses += await deleteCollection(database, [
-      "rounds",
-      roundSnapshot.id,
-      "presses"
-    ]);
-  }
-
-  counts.rounds = await deleteSnapshotDocuments(database, roundsSnapshot);
-
-  const roundId = createId("round");
-  const batch = writeBatch(database);
-  batch.set(gameRef(database), {
-    ...cleanGamePayload(roundId, 1),
-    createdAt: serverTimestamp(),
-    fullResetAt: serverTimestamp()
+  await update(rootRef(database), {
+    participants: null,
+    usernames: null,
+    rounds: {
+      [roundId]: cleanRoundPayload(roundId, 1)
+    },
+    "settings/game": {
+      ...cleanGamePayload(roundId, 1, 0),
+      createdAt: now(),
+      fullResetAt: now()
+    }
   });
-  batch.set(roundRef(roundId, database), cleanRoundPayload(roundId, 1));
-  await batch.commit();
 
   return counts;
 }

@@ -13,6 +13,7 @@ import {
   enableRound,
   resetGameToStart,
   resetRound,
+  subscribeConnection,
   subscribeGame,
   subscribeParticipants,
   subscribePresses
@@ -47,9 +48,11 @@ const elements = {
 let currentGame = null;
 let currentPresses = [];
 let currentParticipants = [];
+let isConnected = null;
 let gameUnsubscribe = null;
 let pressesUnsubscribe = null;
 let participantsUnsubscribe = null;
+let connectionUnsubscribe = null;
 
 function isUnlocked() {
   return sessionStorage.getItem(STORAGE_KEYS.adminUnlocked) === "true";
@@ -69,12 +72,19 @@ function renderAdmin() {
   elements.responseCountText.textContent = String(currentPresses.length);
 
   const isOpen = Boolean(currentGame?.isButtonEnabled);
+  const controlsDisabled = !currentGame || isConnected !== true;
   elements.toggleRoundButtonLabel.textContent = isOpen ? "Disable" : "Enable";
   elements.toggleRoundButton.classList.toggle("is-live", isOpen);
-  elements.toggleRoundButton.disabled = !currentGame;
-  elements.resetRoundButton.disabled = false;
-  elements.resetGameButton.disabled = false;
-  elements.deleteAllButton.disabled = false;
+  elements.toggleRoundButton.disabled = controlsDisabled;
+  elements.resetRoundButton.disabled = controlsDisabled;
+  elements.resetGameButton.disabled = controlsDisabled;
+  elements.deleteAllButton.disabled = controlsDisabled;
+
+  if (isConnected === false) {
+    elements.syncNote.textContent = "Reconnecting to Firebase. Controls are paused.";
+  } else if (isConnected === null) {
+    elements.syncNote.textContent = "Connecting to Firebase.";
+  }
 
   renderPressList(elements.pressList, currentPresses, currentGame, {
     emptyMessage: isOpen ? "No presses yet." : "No responses in this round."
@@ -165,6 +175,21 @@ async function showDashboard() {
   elements.participantUrl.textContent = getPageUrl("index.html");
   elements.displayUrl.textContent = getPageUrl("display.html");
 
+  connectionUnsubscribe = subscribeConnection(
+    (connected) => {
+      isConnected = connected;
+      elements.syncNote.textContent = connected
+        ? "Live updates connected."
+        : "Reconnecting to Firebase. Controls are paused.";
+      renderAdmin();
+    },
+    () => {
+      isConnected = false;
+      elements.syncNote.textContent = "Unable to check the Firebase connection.";
+      renderAdmin();
+    }
+  );
+
   gameUnsubscribe = await subscribeGame(
     (game) => {
       const previousRoundId = currentGame?.roundId;
@@ -197,7 +222,28 @@ async function copyText(value) {
   }, 1600);
 }
 
+async function withActionTimeout(actionPromise, timeoutMs = 8000) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error("Firebase did not confirm that action. Check the connection and try again."));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([actionPromise, timeoutPromise]);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 async function runAdminAction(button, action, workingText) {
+  if (isConnected !== true) {
+    elements.syncNote.textContent = "Firebase is reconnecting. Try again once connected.";
+    renderAdmin();
+    return;
+  }
+
   const label = button.querySelector(".hot-button-label");
   const originalText = label ? label.textContent : button.textContent;
   button.disabled = true;
@@ -209,7 +255,8 @@ async function runAdminAction(button, action, workingText) {
   }
 
   try {
-    await action();
+    await withActionTimeout(action());
+    elements.syncNote.textContent = "Action confirmed.";
   } catch (error) {
     elements.syncNote.textContent = error.message || "Action failed.";
   } finally {
@@ -299,6 +346,7 @@ elements.copyDisplayUrl.addEventListener("click", () => {
 });
 
 window.addEventListener("pagehide", () => {
+  connectionUnsubscribe?.();
   gameUnsubscribe?.();
   pressesUnsubscribe?.();
   participantsUnsubscribe?.();

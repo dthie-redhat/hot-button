@@ -12,6 +12,7 @@ import {
   HotButtonError,
   pressButton,
   registerParticipant,
+  subscribeConnection,
   subscribeGame,
   subscribeParticipant,
   subscribeParticipantPress
@@ -38,6 +39,7 @@ const elements = {
 let currentGame = null;
 let currentParticipant = null;
 let currentPress = null;
+let isConnected = null;
 let isRegistering = false;
 let isPressing = false;
 let isPressAnimationActive = false;
@@ -45,6 +47,7 @@ let transientButtonMessage = "";
 let gameUnsubscribe = null;
 let participantUnsubscribe = null;
 let pressUnsubscribe = null;
+let connectionUnsubscribe = null;
 let pressAnimationTimeout = null;
 
 function showRegistration(message = "") {
@@ -80,13 +83,21 @@ function renderButtonState() {
 
   const roundIsOpen = Boolean(currentGame?.isButtonEnabled && currentGame?.roundStartedAt);
   const hasPressed = Boolean(currentPress);
-  const canPress = roundIsOpen && !hasPressed && !isPressing;
+  const canPress = isConnected === true && roundIsOpen && !hasPressed && !isPressing;
   elements.hotButton.disabled = !canPress;
-  elements.hotButton.classList.toggle("is-live", roundIsOpen && !hasPressed);
+  elements.hotButton.classList.toggle("is-live", isConnected === true && roundIsOpen && !hasPressed);
   elements.hotButton.classList.toggle("is-registering", isPressAnimationActive);
 
   if (transientButtonMessage) {
     elements.buttonStateMessage.textContent = transientButtonMessage;
+    return;
+  }
+
+  if (isConnected !== true) {
+    elements.buttonStateMessage.textContent =
+      isConnected === false
+        ? "Reconnecting to the game."
+        : "Connecting to the game.";
     return;
   }
 
@@ -181,6 +192,17 @@ async function start() {
     return;
   }
 
+  connectionUnsubscribe = subscribeConnection(
+    (connected) => {
+      isConnected = connected;
+      renderButtonState();
+    },
+    () => {
+      isConnected = false;
+      renderButtonState();
+    }
+  );
+
   gameUnsubscribe = await subscribeGame(
     (game) => {
       const previousRoundId = currentGame?.roundId;
@@ -222,7 +244,7 @@ elements.changeUsernameButton.addEventListener("click", () => {
 elements.hotButton.addEventListener("click", async () => {
   const roundIsOpen = Boolean(currentGame?.isButtonEnabled && currentGame?.roundStartedAt);
 
-  if (!roundIsOpen || currentPress || isPressing) {
+  if (isConnected !== true || !roundIsOpen || currentPress || isPressing) {
     return;
   }
 
@@ -248,6 +270,7 @@ elements.hotButton.addEventListener("click", async () => {
 });
 
 window.addEventListener("pagehide", () => {
+  connectionUnsubscribe?.();
   gameUnsubscribe?.();
   participantUnsubscribe?.();
   pressUnsubscribe?.();

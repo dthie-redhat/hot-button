@@ -1,6 +1,7 @@
 export const firebaseConfig = {
   apiKey: "AIzaSyCXc1w2gfNKBT8q3quibPaj9w9doa5EUlY",
   authDomain: "hot-button-1f98e.firebaseapp.com",
+  databaseURL: "https://hot-button-1f98e-default-rtdb.europe-west1.firebasedatabase.app/",
   projectId: "hot-button-1f98e",
   storageBucket: "hot-button-1f98e.firebasestorage.app",
   messagingSenderId: "496180078312",
@@ -14,4 +15,3 @@ export const appSettings = {
   usernameMinLength: 2,
   usernameMaxLength: 24
 };
-

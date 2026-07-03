@@ -43,7 +43,7 @@ export function usernameKey(username) {
 }
 
 export function usernameDocId(username) {
-  return encodeURIComponent(usernameKey(username));
+  return encodeURIComponent(usernameKey(username)).replace(/\./g, "%2E");
 }
 
 export function validateUsername(value) {
@@ -71,6 +71,14 @@ export function validateUsername(value) {
 }
 
 export function timestampToMillis(value) {
+  if (typeof value === "number") {
+    return value;
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
   return value && typeof value.toMillis === "function" ? value.toMillis() : null;
 }
 

@@ -1,7 +1,7 @@
 import { firebaseIsConfigured } from "./firebase.js";
 import { renderPressList, getGameStateLabel } from "./render.js";
 import { getPageUrl, setElementHidden } from "./utils.js";
-import { subscribeGame, subscribePresses } from "./store.js";
+import { subscribeConnection, subscribeGame, subscribePresses } from "./store.js";
 
 const elements = {
   configWarning: document.querySelector("[data-config-warning]"),
@@ -15,14 +15,21 @@ const elements = {
 
 let currentGame = null;
 let currentPresses = [];
+let isConnected = null;
 let gameUnsubscribe = null;
 let pressesUnsubscribe = null;
+let connectionUnsubscribe = null;
 
 function renderDisplay() {
   elements.stateText.textContent = getGameStateLabel(currentGame);
   elements.roundText.textContent = `Round ${currentGame?.roundNumber || 1}`;
 
-  if (currentGame?.isButtonEnabled) {
+  if (isConnected !== true) {
+    elements.footer.textContent =
+      isConnected === false
+        ? "Reconnecting to live updates."
+        : "Connecting to live updates.";
+  } else if (currentGame?.isButtonEnabled) {
     elements.footer.textContent = currentPresses.length
       ? "Live response order."
       : "Button is open.";
@@ -72,6 +79,17 @@ async function start() {
     return;
   }
 
+  connectionUnsubscribe = subscribeConnection(
+    (connected) => {
+      isConnected = connected;
+      renderDisplay();
+    },
+    () => {
+      isConnected = false;
+      renderDisplay();
+    }
+  );
+
   gameUnsubscribe = await subscribeGame(
     (game) => {
       const previousRoundId = currentGame?.roundId;
@@ -90,6 +108,7 @@ async function start() {
 }
 
 window.addEventListener("pagehide", () => {
+  connectionUnsubscribe?.();
   gameUnsubscribe?.();
   pressesUnsubscribe?.();
 });

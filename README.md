@@ -2,7 +2,7 @@
 
 Hot Button is a lightweight web app for live quiz, training, conference, and classroom sessions. Participants join from their own device, choose a made-up username, and press a large button when the host opens the round. A shared display shows the order of valid presses and the elapsed time for each response.
 
-The app is designed to be hosted as a static GitHub Pages site with Firebase Firestore providing low-volume real-time shared state.
+The app is designed to be hosted as a static GitHub Pages site with Firebase Realtime Database providing low-volume live shared state.
 
 ## Interfaces
 
@@ -24,17 +24,18 @@ The app has three pages:
 - The admin can see the full current participant list.
 - Presses before the button is opened are ignored.
 - Each participant can press only once per round.
-- Press timestamps use Firestore server timestamps.
-- Admin and display pages subscribe to live Firestore updates.
+- Press timestamps use Firebase Realtime Database server timestamps.
+- Admin and display pages subscribe to live Realtime Database updates.
+- Admin, participant, and display pages show clearer connection/reconnection states.
 - The display page sorts responses by fastest valid press.
 - The display page shows the supplied participant QR code and URL.
 - The admin can delete all participants, username reservations, rounds, and press history.
 
 ## Backend Choice
 
-This project uses Firebase Firestore rather than a queue.
+This project uses Firebase Realtime Database rather than a queue.
 
-A queue would be good for processing one-way events, but Hot Button needs shared live state: whether the button is open, who is registered, which round is current, and the current ordered response list. Firestore is a better fit because it supports real-time listeners, server timestamps, transactions, and simple static-site integration.
+A queue would be good for processing one-way events, but Hot Button needs shared live state: whether the button is open, who is registered, which round is current, and the current ordered response list. Realtime Database is a better fit because it is built around synchronising small JSON state trees to many connected clients, supports server timestamps, supports transactions, and exposes connection state to browser clients.
 
 ## Project Structure
 
@@ -56,8 +57,7 @@ A queue would be good for processing one-way events, but Hot Button needs shared
 │   ├── store.js
 │   ├── styles.css
 │   └── utils.js
-├── firestore.rules
-├── firestore.indexes.json
+├── database.rules.json
 ├── firebase.json
 └── .nojekyll
 ```
@@ -68,9 +68,10 @@ There is no build step and no package install. The browser loads Firebase's host
 
 1. Create a Firebase project.
 2. Add a web app in Firebase project settings.
-3. Create a Firestore database.
+3. Create a Realtime Database.
 4. Copy the Firebase web app config into `src/config.js`.
-5. Publish the rules from `firestore.rules`.
+5. Add the Realtime Database URL to `databaseURL` in `src/config.js`.
+6. Publish the rules from `database.rules.json`.
 
 The config file currently contains placeholders:
 
@@ -78,6 +79,7 @@ The config file currently contains placeholders:
 export const firebaseConfig = {
   apiKey: "YOUR_FIREBASE_API_KEY",
   authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  databaseURL: "https://YOUR_DATABASE_NAME.firebaseio.com",
   projectId: "YOUR_PROJECT_ID",
   storageBucket: "YOUR_PROJECT_ID.appspot.com",
   messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
@@ -85,7 +87,15 @@ export const firebaseConfig = {
 };
 ```
 
-The public Firebase config is expected to be visible in a static frontend. Access control should be handled by Firestore rules and by the low-risk nature of the stored data.
+The public Firebase config is expected to be visible in a static frontend. Access control should be handled by Realtime Database rules and by the low-risk nature of the stored data.
+
+The Realtime Database URL depends on the database location. Newer projects often use a URL like:
+
+```text
+https://YOUR_PROJECT_ID-default-rtdb.REGION.firebasedatabase.app
+```
+
+Copy the exact URL shown in the Firebase console rather than guessing it.
 
 ## Admin Passcode
 
@@ -130,7 +140,7 @@ The app will show a Firebase setup warning until `src/config.js` contains real F
 
 The `.nojekyll` file is included so GitHub Pages serves the static files without Jekyll processing.
 
-## Firestore Data Model
+## Realtime Database Data Model
 
 The app stores only temporary quiz/session data.
 
@@ -144,7 +154,7 @@ rounds/{roundId}/presses/{participantId}
 
 ### `settings/game`
 
-Tracks the current round and whether the button is open.
+Tracks the current round, whether the button is open, and a simple revision number for state changes.
 
 Important fields:
 
@@ -152,6 +162,7 @@ Important fields:
 - `roundId`
 - `roundNumber`
 - `roundStartedAt`
+- `revision`
 - `updatedAt`
 
 ### `participants/{participantId}`
@@ -201,8 +212,9 @@ Round reset:
 - Disables the button.
 - Keeps the current round number.
 - Clears the visible response list.
-- Deletes the current round's press entries.
+- Creates a fresh active `roundId` instead of deleting old press entries.
 - Keeps participant registrations and username reservations.
+- Preserves old round data as historical session data.
 
 Game reset:
 
@@ -237,7 +249,7 @@ It should not collect real names, email addresses, phone numbers, participant ac
 This is intentionally a low-risk event tool.
 
 - The admin passcode is client-side and can be inspected by a determined user.
-- Firestore rules constrain some participant writes, but admin-style writes are still convenience-gated.
+- Realtime Database rules validate the general data shape, but admin-style writes are still convenience-gated.
 - Do not store personal or sensitive information in this app.
 - For stronger security later, add Firebase Authentication or a small trusted backend for admin actions.
 
