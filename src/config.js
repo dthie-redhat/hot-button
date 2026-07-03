@@ -5,7 +5,8 @@ export const firebaseConfig = {
   projectId: "hot-button-1f98e",
   storageBucket: "hot-button-1f98e.firebasestorage.app",
   messagingSenderId: "496180078312",
-  appId: "1:496180078312:web:d5d4f838bb8d027019cb5d"
+  appId: "1:496180078312:web:d5d4f838bb8d027019cb5d",
+  appCheckRecaptchaSiteKey: "6LdnJEMtAAAAAAvGroUcSII5rc3n7unkQLbnD2AC"
 };
 
 export const appSettings = {

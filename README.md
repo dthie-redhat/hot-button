@@ -83,11 +83,12 @@ export const firebaseConfig = {
   projectId: "YOUR_PROJECT_ID",
   storageBucket: "YOUR_PROJECT_ID.appspot.com",
   messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_FIREBASE_APP_ID"
+  appId: "YOUR_FIREBASE_APP_ID",
+  appCheckRecaptchaSiteKey: "YOUR_RECAPTCHA_V3_SITE_KEY"
 };
 ```
 
-The public Firebase config is expected to be visible in a static frontend. Access control should be handled by Realtime Database rules and by the low-risk nature of the stored data.
+The public Firebase config is expected to be visible in a static frontend. Access control should be handled by Realtime Database rules, Firebase App Check, and by the low-risk nature of the stored data.
 
 The Realtime Database URL depends on the database location. Newer projects often use a URL like:
 
@@ -96,6 +97,20 @@ https://YOUR_PROJECT_ID-default-rtdb.REGION.firebasedatabase.app
 ```
 
 Copy the exact URL shown in the Firebase console rather than guessing it.
+
+## Firebase App Check
+
+The app can use Firebase App Check with the standard reCAPTCHA v3 provider. This helps Firebase reject traffic that is not coming from the registered web app, even if someone has copied the public Firebase config values.
+
+1. In Firebase Console, open **App Check**.
+2. Register the Hot Button web app with the **reCAPTCHA v3** provider.
+3. Add the GitHub Pages domain to the reCAPTCHA key configuration.
+4. Copy the reCAPTCHA v3 site key into `appCheckRecaptchaSiteKey` in `src/config.js`.
+5. Deploy the app and confirm the participant, admin, and display pages still work.
+6. In Firebase Console > App Check, monitor Realtime Database request metrics.
+7. Enable App Check enforcement for Realtime Database once verified traffic is showing.
+
+For local development, the app enables Firebase's App Check debug token mode automatically on `localhost`, `127.0.0.1`, and `::1` when `appCheckRecaptchaSiteKey` is configured. The first local run prints a debug token in the browser console. Add that token in Firebase Console > App Check > your app > Manage debug tokens. Keep debug tokens private because they bypass normal App Check verification.
 
 ## Admin Passcode
 
