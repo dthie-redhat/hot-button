@@ -125,7 +125,6 @@ export async function ensureGameDocument() {
 
 export async function subscribeGame(onNext, onError) {
   const database = requireDb();
-  await ensureGameDocument();
 
   return onValue(
     gameRef(database),
@@ -297,22 +296,33 @@ export async function enableRound() {
     return;
   }
 
-  await update(rootRef(database), {
-    [`rounds/${roundId}`]: {
-      ...(needsNewRound ? cleanRoundPayload(roundId, roundNumber) : {}),
-      roundId,
-      roundNumber,
-      status: "active",
-      startedAt: now(),
-      updatedAt: now()
-    },
+  const updates = {
     "settings/game/isButtonEnabled": true,
     "settings/game/roundId": roundId,
     "settings/game/roundNumber": roundNumber,
     "settings/game/roundStartedAt": now(),
     "settings/game/revision": revision,
     "settings/game/updatedAt": now()
-  });
+  };
+
+  if (needsNewRound) {
+    updates[`rounds/${roundId}`] = {
+      ...cleanRoundPayload(roundId, roundNumber),
+      roundId,
+      roundNumber,
+      status: "active",
+      startedAt: now(),
+      updatedAt: now()
+    };
+  } else {
+    updates[`rounds/${roundId}/roundId`] = roundId;
+    updates[`rounds/${roundId}/roundNumber`] = roundNumber;
+    updates[`rounds/${roundId}/status`] = "active";
+    updates[`rounds/${roundId}/startedAt`] = now();
+    updates[`rounds/${roundId}/updatedAt`] = now();
+  }
+
+  await update(rootRef(database), updates);
 }
 
 export async function disableRound() {
@@ -359,7 +369,9 @@ export async function resetGameToStart() {
   const roundId = createId("round");
 
   await update(rootRef(database), {
-    [`rounds/${roundId}`]: cleanRoundPayload(roundId, 1),
+    rounds: {
+      [roundId]: cleanRoundPayload(roundId, 1)
+    },
     "settings/game/isButtonEnabled": false,
     "settings/game/roundId": roundId,
     "settings/game/roundNumber": 1,

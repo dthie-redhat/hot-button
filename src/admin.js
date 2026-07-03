@@ -11,6 +11,7 @@ import {
   deleteAllData,
   disableRound,
   enableRound,
+  ensureGameDocument,
   resetGameToStart,
   resetRound,
   subscribeConnection,
@@ -175,6 +176,12 @@ async function showDashboard() {
   elements.participantUrl.textContent = getPageUrl("index.html");
   elements.displayUrl.textContent = getPageUrl("display.html");
 
+  try {
+    currentGame = await ensureGameDocument();
+  } catch (error) {
+    elements.syncNote.textContent = error.message || "Unable to initialise the game state.";
+  }
+
   connectionUnsubscribe = subscribeConnection(
     (connected) => {
       isConnected = connected;
@@ -319,7 +326,7 @@ elements.resetRoundButton.addEventListener("click", () => {
 
 elements.resetGameButton.addEventListener("click", () => {
   const confirmed = window.confirm(
-    "Reset the game back to Round 1 while preserving participants and stored history?"
+    "Reset back to Round 1, keep participants, and clear all round history?"
   );
 
   if (confirmed) {

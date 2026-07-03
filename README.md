@@ -20,7 +20,7 @@ The app has three pages:
 - Participants can change username from a small control on the button page.
 - The admin can enable or disable the button with a single state-aware toggle.
 - The admin can reset the current round between questions.
-- The admin can reset the game back to Round 1 while preserving participants and stored history.
+- The admin can reset the game back to Round 1 while preserving participants and clearing round history.
 - The admin can see the full current participant list.
 - Presses before the button is opened are ignored.
 - Each participant can press only once per round.
@@ -221,7 +221,7 @@ Game reset:
 - Disables the button.
 - Creates a new waiting Round 1.
 - Preserves registered participants.
-- Preserves existing stored round and press history.
+- Deletes existing stored round and press history.
 - Makes the current live response list empty because the current round is new.
 
 Delete all data:

@@ -25,7 +25,7 @@
     "rounds": {
       ".write": true,
       "$roundId": {
-        ".validate": "newData.hasChildren(['roundId', 'roundNumber', 'status', 'createdAt', 'updatedAt']) && newData.child('roundId').val() === $roundId && newData.child('roundNumber').isNumber() && newData.child('status').isString()",
+        ".validate": "newData.hasChildren(['roundId', 'roundNumber', 'status', 'updatedAt']) && newData.child('roundId').val() === $roundId && newData.child('roundNumber').isNumber() && newData.child('status').isString()",
         "presses": {
           "$participantId": {
             ".validate": "!data.exists() && root.child('settings').child('game').child('isButtonEnabled').val() === true && root.child('settings').child('game').child('roundId').val() === $roundId && root.child('participants').child($participantId).child('username').val() === newData.child('username').val() && newData.hasChildren(['participantId', 'username', 'usernameKey', 'roundId', 'roundNumber', 'roundStartedAt', 'pressedAt', 'createdAt']) && newData.child('participantId').val() === $participantId && newData.child('roundId').val() === $roundId && newData.child('username').isString() && newData.child('roundNumber').isNumber()"

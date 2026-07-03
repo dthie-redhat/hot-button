@@ -219,13 +219,8 @@ async function start() {
     }
   );
 
-  const cachedUsername = getStoredUsername();
-
-  if (cachedUsername) {
-    await saveUsername(cachedUsername, { quiet: true });
-  } else {
-    showRegistration();
-  }
+  setParticipantSubscription();
+  showRegistration();
 }
 
 elements.registrationForm.addEventListener("submit", async (event) => {
