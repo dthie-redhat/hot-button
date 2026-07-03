@@ -42,6 +42,10 @@ function participantRef(participantId, database = requireDb()) {
   return ref(database, `participants/${participantId}`);
 }
 
+function usernameRef(usernameId, database = requireDb()) {
+  return ref(database, `usernames/${usernameId}`);
+}
+
 function pressRef(roundId, participantId, database = requireDb()) {
   return ref(database, `rounds/${roundId}/presses/${participantId}`);
 }
@@ -191,50 +195,22 @@ export async function registerParticipant(participantId, rawUsername) {
   const username = validation.username;
   const nextUsernameKey = usernameKey(username);
   const nextUsernameDocId = usernameDocId(username);
+  const participantSnapshot = await get(participantRef(participantId, database));
+  const participant = participantSnapshot.exists() ? participantSnapshot.val() : null;
+  const oldUsernameDocId = participant?.usernameDocId;
   const result = await runTransaction(
-    rootRef(database),
-    (session) => {
-      const nextSession = session || {};
-      const participants = { ...(nextSession.participants || {}) };
-      const usernames = { ...(nextSession.usernames || {}) };
-      const participant = participants[participantId] || null;
-      const reservation = usernames[nextUsernameDocId] || null;
-
+    usernameRef(nextUsernameDocId, database),
+    (reservation) => {
       if (reservation?.participantId && reservation.participantId !== participantId) {
         return;
       }
 
-      const oldUsernameDocId = participant?.usernameDocId;
-
-      if (oldUsernameDocId && oldUsernameDocId !== nextUsernameDocId) {
-        const oldReservation = usernames[oldUsernameDocId];
-
-        if (!oldReservation || oldReservation.participantId === participantId) {
-          delete usernames[oldUsernameDocId];
-        }
-      }
-
-      participants[participantId] = {
-        participantId,
-        username,
-        usernameKey: nextUsernameKey,
-        usernameDocId: nextUsernameDocId,
-        createdAt: participant?.createdAt || now(),
-        updatedAt: now()
-      };
-
-      usernames[nextUsernameDocId] = {
+      return {
         participantId,
         username,
         usernameKey: nextUsernameKey,
         createdAt: reservation?.createdAt || now(),
         updatedAt: now()
-      };
-
-      return {
-        ...nextSession,
-        participants,
-        usernames
       };
     },
     { applyLocally: false }
@@ -244,44 +220,50 @@ export async function registerParticipant(participantId, rawUsername) {
     throw new HotButtonError("duplicate-username", "That username is already in use.");
   }
 
+  const updates = {
+    [`participants/${participantId}`]: {
+      participantId,
+      username,
+      usernameKey: nextUsernameKey,
+      usernameDocId: nextUsernameDocId,
+      createdAt: participant?.createdAt || now(),
+      updatedAt: now()
+    }
+  };
+
+  if (oldUsernameDocId && oldUsernameDocId !== nextUsernameDocId) {
+    updates[`usernames/${oldUsernameDocId}`] = null;
+  }
+
+  await update(rootRef(database), updates);
+
   return username;
 }
 
 export async function pressButton(participantId) {
   const database = requireDb();
+  const gameSnapshot = await get(gameRef(database));
+  const game = gameSnapshot.exists() ? gameSnapshot.val() : null;
+
+  if (!game || !game.isButtonEnabled || !game.roundId || !game.roundStartedAt) {
+    throw new HotButtonError("round-closed", "The button is not open yet.");
+  }
+
+  const participantSnapshot = await get(participantRef(participantId, database));
+  const participant = participantSnapshot.exists() ? participantSnapshot.val() : null;
+
+  if (!participant) {
+    throw new HotButtonError("not-registered", "Choose a username before pressing.");
+  }
+
   const result = await runTransaction(
-    rootRef(database),
-    (session) => {
-      if (!session?.settings?.game) {
+    pressRef(game.roundId, participantId, database),
+    (press) => {
+      if (press) {
         return;
       }
 
-      const game = session.settings.game;
-
-      if (!game.isButtonEnabled || !game.roundId || !game.roundStartedAt) {
-        return;
-      }
-
-      const participant = session.participants?.[participantId];
-
-      if (!participant) {
-        return;
-      }
-
-      const rounds = { ...(session.rounds || {}) };
-      const round = {
-        ...(rounds[game.roundId] || {
-          roundId: game.roundId,
-          roundNumber: game.roundNumber || null
-        })
-      };
-      const presses = { ...(round.presses || {}) };
-
-      if (presses[participantId]) {
-        return;
-      }
-
-      presses[participantId] = {
+      return {
         participantId,
         username: participant.username,
         usernameKey: participant.usernameKey,
@@ -291,15 +273,6 @@ export async function pressButton(participantId) {
         pressedAt: now(),
         createdAt: now()
       };
-
-      round.presses = presses;
-      round.updatedAt = now();
-      rounds[game.roundId] = round;
-
-      return {
-        ...session,
-        rounds
-      };
     },
     { applyLocally: false }
   );
@@ -307,27 +280,7 @@ export async function pressButton(participantId) {
   if (result.committed) {
     return;
   }
-
-  const gameSnapshot = await get(gameRef(database));
-  const game = gameSnapshot.exists() ? gameSnapshot.val() : null;
-
-  if (!game || !game.isButtonEnabled || !game.roundId || !game.roundStartedAt) {
-    throw new HotButtonError("round-closed", "The button is not open yet.");
-  }
-
-  const participantSnapshot = await get(participantRef(participantId, database));
-
-  if (!participantSnapshot.exists()) {
-    throw new HotButtonError("not-registered", "Choose a username before pressing.");
-  }
-
-  const pressSnapshot = await get(pressRef(game.roundId, participantId, database));
-
-  if (pressSnapshot.exists()) {
-    throw new HotButtonError("already-pressed", "Your press is already registered.");
-  }
-
-  throw new HotButtonError("press-failed", "Unable to register your press.");
+  throw new HotButtonError("already-pressed", "Your press is already registered.");
 }
 
 export async function enableRound() {
