@@ -1,5 +1,5 @@
 import { appSettings } from "./config.js";
-import { firebaseIsConfigured } from "./firebase.js";
+import { firebaseIsConfigured, verifyAppCheck } from "./firebase.js";
 import { renderPressList, getGameStateLabel } from "./render.js";
 import {
   getPageUrl,
@@ -177,9 +177,15 @@ async function showDashboard() {
   elements.displayUrl.textContent = getPageUrl("display.html");
 
   try {
-    currentGame = await ensureGameDocument();
+    await verifyAppCheck();
+    currentGame = await withActionTimeout(
+      ensureGameDocument(),
+      "Firebase did not initialise the game state. Check the connection and try again."
+    );
   } catch (error) {
     elements.syncNote.textContent = error.message || "Unable to initialise the game state.";
+    renderAdmin();
+    return;
   }
 
   connectionUnsubscribe = subscribeConnection(
@@ -229,11 +235,18 @@ async function copyText(value) {
   }, 1600);
 }
 
-async function withActionTimeout(actionPromise, timeoutMs = 8000) {
+async function withActionTimeout(
+  actionPromise,
+  timeoutOrMessage = 8000,
+  message = "Firebase did not confirm that action. Check the connection and try again."
+) {
+  const timeoutMs = Number.isFinite(timeoutOrMessage) ? timeoutOrMessage : 8000;
+  const timeoutMessage =
+    typeof timeoutOrMessage === "string" ? timeoutOrMessage : message;
   let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = window.setTimeout(() => {
-      reject(new Error("Firebase did not confirm that action. Check the connection and try again."));
+      reject(new Error(timeoutMessage));
     }, timeoutMs);
   });
 
@@ -262,7 +275,12 @@ async function runAdminAction(button, action, workingText) {
   }
 
   try {
-    await withActionTimeout(action());
+    await withActionTimeout(
+      (async () => {
+        await verifyAppCheck();
+        return action();
+      })()
+    );
     elements.syncNote.textContent = "Action confirmed.";
   } catch (error) {
     elements.syncNote.textContent = error.message || "Action failed.";

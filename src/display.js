@@ -1,4 +1,4 @@
-import { firebaseIsConfigured } from "./firebase.js";
+import { firebaseIsConfigured, verifyAppCheck } from "./firebase.js";
 import { renderPressList, getGameStateLabel } from "./render.js";
 import { getPageUrl, setElementHidden } from "./utils.js";
 import { subscribeConnection, subscribeGame, subscribePresses } from "./store.js";
@@ -76,6 +76,13 @@ async function start() {
   if (!firebaseIsConfigured) {
     setElementHidden(elements.configWarning, false);
     setElementHidden(elements.board, true);
+    return;
+  }
+
+  try {
+    await verifyAppCheck();
+  } catch (error) {
+    elements.footer.textContent = error.message || "Unable to verify this browser.";
     return;
   }
 

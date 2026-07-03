@@ -1,4 +1,4 @@
-import { firebaseIsConfigured } from "./firebase.js";
+import { firebaseIsConfigured, verifyAppCheck } from "./firebase.js";
 import {
   clearStoredUsername,
   formatElapsed,
@@ -49,6 +49,21 @@ let participantUnsubscribe = null;
 let pressUnsubscribe = null;
 let connectionUnsubscribe = null;
 let pressAnimationTimeout = null;
+
+async function withFirebaseTimeout(actionPromise, timeoutMs = 10000) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error("Firebase did not confirm that request. Check the connection and try again."));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([actionPromise, timeoutPromise]);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
 
 function showRegistration(message = "") {
   elements.registrationError.textContent = message;
@@ -169,7 +184,10 @@ async function saveUsername(username, options = {}) {
   setElementHidden(elements.registrationError, true);
 
   try {
-    const savedUsername = await registerParticipant(participantId, username);
+    await verifyAppCheck();
+    const savedUsername = await withFirebaseTimeout(
+      registerParticipant(participantId, username)
+    );
     setStoredUsername(savedUsername);
     setParticipantSubscription();
     showButtonPanel();
@@ -189,6 +207,13 @@ async function start() {
     setElementHidden(elements.configWarning, false);
     setElementHidden(elements.registrationPanel, true);
     setElementHidden(elements.buttonPanel, true);
+    return;
+  }
+
+  try {
+    await verifyAppCheck();
+  } catch (error) {
+    showRegistration(error.message || "Unable to verify this browser.");
     return;
   }
 

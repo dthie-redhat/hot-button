@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
+  getToken,
   initializeAppCheck,
   ReCaptchaV3Provider
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app-check.js";
@@ -29,7 +30,7 @@ export const appCheckRecaptchaSiteKey = firebaseConfig.appCheckRecaptchaSiteKey 
 export const appCheckIsConfigured =
   firebaseIsConfigured && !isMissingConfigValue(appCheckRecaptchaSiteKey);
 
-function isLocalDevelopmentHost() {
+export function isLocalDevelopmentHost() {
   return ["localhost", "127.0.0.1", "::1"].includes(globalThis.location?.hostname);
 }
 
@@ -47,3 +48,33 @@ export const appCheck =
     : null;
 
 export const db = firebaseApp ? getDatabase(firebaseApp) : null;
+
+function appCheckFailureMessage() {
+  const localHelp = isLocalDevelopmentHost()
+    ? " For local testing, add the App Check debug token from the browser console in Firebase Console."
+    : "";
+
+  return `Firebase App Check could not verify this browser. Check that the reCAPTCHA v3 site key is registered in Firebase App Check and that this domain is allowed.${localHelp}`;
+}
+
+export async function verifyAppCheck(timeoutMs = 8000) {
+  if (!appCheck) {
+    return;
+  }
+
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = globalThis.setTimeout(() => {
+      reject(new Error(appCheckFailureMessage()));
+    }, timeoutMs);
+  });
+
+  try {
+    await Promise.race([getToken(appCheck, false), timeoutPromise]);
+  } catch (error) {
+    console.warn("Firebase App Check verification failed.", error);
+    throw new Error(appCheckFailureMessage());
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+}

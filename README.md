@@ -112,6 +112,8 @@ The app can use Firebase App Check with the standard reCAPTCHA v3 provider. This
 
 For local development, the app enables Firebase's App Check debug token mode automatically on `localhost`, `127.0.0.1`, and `::1` when `appCheckRecaptchaSiteKey` is configured. The first local run prints a debug token in the browser console. Add that token in Firebase Console > App Check > your app > Manage debug tokens. Keep debug tokens private because they bypass normal App Check verification.
 
+reCAPTCHA v3 is invisible, so users should not be redirected to a challenge screen. If a button action appears to wait and then reports an App Check error, check that the key is a reCAPTCHA v3 key, the GitHub Pages domain is allowed, the key is registered against the web app in Firebase App Check, and local debug tokens have been added before testing from localhost.
+
 ## Admin Passcode
 
 The admin page uses a simple client-side passcode hash. This is a convenience barrier, not strong security.
